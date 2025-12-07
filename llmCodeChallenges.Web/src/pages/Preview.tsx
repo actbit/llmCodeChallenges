@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import MarkdownIt from "markdown-it";
+import { problemsApi } from "../api/problems";
 
 type PreviewState = {
   title?: string;
@@ -10,6 +11,8 @@ type PreviewState = {
   zipName?: string | null;
   markdownName?: string | null;
   markdownContent?: string | null;
+  zipFile?: File | null;
+  markdownFile?: File | null;
 };
 
 const md = new MarkdownIt();
@@ -19,6 +22,7 @@ function Preview() {
   const navigate = useNavigate();
   const state = (location.state || {}) as PreviewState;
   const [status, setStatus] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     if (
@@ -26,7 +30,9 @@ function Preview() {
       !state.language ||
       !state.zipName ||
       !state.markdownName ||
-      !state.markdownContent
+      !state.markdownContent ||
+      !state.zipFile ||
+      !state.markdownFile
     ) {
       navigate("/publish", { replace: true });
     }
@@ -35,6 +41,32 @@ function Preview() {
   const markdownHtml = useMemo(() => {
     return state.markdownContent ? md.render(state.markdownContent) : "";
   }, [state.markdownContent]);
+
+  const handlePublish = async () => {
+    if (!state.title || !state.language || !state.zipFile || !state.markdownFile) {
+      setStatus("Missing required data. Please go back and try again.");
+      return;
+    }
+
+    try {
+      setPublishing(true);
+      setStatus("Publishing challenge...");
+      const created = await problemsApi.create({
+        name: state.title,
+        language: state.language,
+        tags: state.tags || [],
+        markdownFile: state.markdownFile,
+        archiveFile: state.zipFile,
+      });
+
+      setStatus(null);
+      navigate(`/challenge/${created.id}`, { replace: true });
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Failed to publish challenge.");
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   return (
     <div
@@ -111,10 +143,11 @@ function Preview() {
                   Back to Edit
                 </button>
                 <button
-                  onClick={() => setStatus("Publishing not implemented in this demo.")}
-                  className="flex min-w-[150px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-6 bg-[#1380ec] text-white text-base font-bold leading-normal tracking-[0.015em] hover:bg-[#0d6ecc] transition-colors"
+                  onClick={handlePublish}
+                  disabled={publishing}
+                  className="flex min-w-[150px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-6 bg-[#1380ec] text-white text-base font-bold leading-normal tracking-[0.015em] hover:bg-[#0d6ecc] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Publish Challenge
+                  {publishing ? "Publishing..." : "Publish Challenge"}
                 </button>
               </div>
               {status && <p className="text-[#9dabb9] text-sm pt-2">{status}</p>}

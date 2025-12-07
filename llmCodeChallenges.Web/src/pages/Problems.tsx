@@ -1,9 +1,12 @@
 import Header from "../components/Header";
 import { Link } from "react-router-dom";
-import { mockProblems } from "../mock";
 import { useState, useMemo, useRef, useEffect } from "react";
+import { problemsApi, type Problem } from "../api/problems";
 
 export function Problems() {
+  const [problems, setProblems] = useState<Problem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -14,6 +17,24 @@ export function Problems() {
 
   const languageDropdownRef = useRef<HTMLDivElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch problems on mount
+  useEffect(() => {
+    const fetchProblems = async () => {
+      try {
+        setLoading(true);
+        const data = await problemsApi.getAll();
+        setProblems(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load problems");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProblems();
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -37,20 +58,20 @@ export function Problems() {
 
   // Get unique languages and tags
   const languages = useMemo(() => {
-    return Array.from(new Set(mockProblems.map((p) => p.language)));
-  }, []);
+    return Array.from(new Set(problems.map((p) => p.language)));
+  }, [problems]);
 
   const allTags = useMemo(() => {
-    return Array.from(new Set(mockProblems.flatMap((p) => p.tags)));
-  }, []);
+    return Array.from(new Set(problems.flatMap((p) => p.tags)));
+  }, [problems]);
 
   // Filter problems
   const filteredProblems = useMemo(() => {
-    return mockProblems.filter((problem) => {
+    return problems.filter((problem) => {
       const matchesSearch =
         searchQuery === "" ||
-        problem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        problem.description.toLowerCase().includes(searchQuery.toLowerCase());
+        problem.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (problem.description?.toLowerCase() || "").includes(searchQuery.toLowerCase());
 
       const matchesLanguage = !selectedLanguage || problem.language === selectedLanguage;
 
@@ -58,7 +79,7 @@ export function Problems() {
 
       return matchesSearch && matchesLanguage && matchesTag;
     });
-  }, [searchQuery, selectedLanguage, selectedTag]);
+  }, [problems, searchQuery, selectedLanguage, selectedTag]);
 
   // Create a filter key to track when filters change
   const filterKey = `${searchQuery}-${selectedLanguage}-${selectedTag}`;
@@ -98,7 +119,7 @@ export function Problems() {
                   </p>
                   {(searchQuery || selectedLanguage || selectedTag) && (
                     <p className="text-[#9dabb9] text-sm">
-                      Showing {filteredProblems.length} of {mockProblems.length} challenges
+                      Showing {filteredProblems.length} of {problems.length} challenges
                     </p>
                   )}
                 </div>
@@ -246,7 +267,21 @@ export function Problems() {
                   )}
                 </div>
               </div>
-              {filteredProblems.length === 0 ? (
+              {loading ? (
+                <div className="p-8 text-center">
+                  <p className="text-[#9dabb9] text-lg">Loading challenges...</p>
+                </div>
+              ) : error ? (
+                <div className="p-8 text-center">
+                  <p className="text-red-400 text-lg">{error}</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-4 text-[#1380ec] hover:underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : filteredProblems.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-[#9dabb9] text-lg">
                     No challenges found matching your filters.
@@ -275,10 +310,10 @@ export function Problems() {
                             {problem.language}
                           </p>
                           <p className="text-white text-base font-bold leading-tight">
-                            {problem.title}
+                            {problem.name}
                           </p>
                           <p className="text-[#9dabb9] text-sm font-normal leading-normal">
-                            {problem.description}
+                            {problem.description || "No description available"}
                           </p>
                           <div className="flex gap-2 mt-2">
                             {problem.tags.map((tag) => (

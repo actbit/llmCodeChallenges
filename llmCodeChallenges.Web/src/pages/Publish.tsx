@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
-import { mockProblems } from "../mock";
+import { problemsApi } from "../api/problems";
 
 function Publish() {
   const navigate = useNavigate();
@@ -11,11 +11,36 @@ function Publish() {
   const [markdownFile, setMarkdownFile] = useState<File | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [status, setStatus] = useState<string | null>(null);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+  const [tagError, setTagError] = useState<string | null>(null);
 
-  const allTags = useMemo(
-    () => Array.from(new Set(mockProblems.flatMap((p) => p.tags))).sort(),
-    []
-  );
+  useEffect(() => {
+    let cancelled = false;
+    const fetchTags = async () => {
+      setLoadingTags(true);
+      try {
+        const problems = await problemsApi.getAll();
+        if (cancelled) return;
+        setAllTags(Array.from(new Set(problems.flatMap((p) => p.tags))).sort());
+        setTagError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setTagError(
+          err instanceof Error ? err.message : "Failed to load tags. You can still continue without them."
+        );
+      } finally {
+        if (!cancelled) {
+          setLoadingTags(false);
+        }
+      }
+    };
+
+    fetchTags();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -23,7 +48,7 @@ function Publish() {
     );
   };
 
-  const isFormValid = title.trim() && language.trim() && zipFile && markdownFile;
+  const isFormValid = Boolean(title.trim() && language.trim() && zipFile && markdownFile);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,11 +68,14 @@ function Publish() {
           tags: selectedTags,
           zipName: zipFile?.name,
           markdownName: markdownFile?.name,
+          zipFile,
+          markdownFile,
           markdownContent,
         },
       });
     } catch (err) {
-      setStatus("Failed to read markdown file for preview." + err);
+      const message = err instanceof Error ? err.message : String(err);
+      setStatus("Failed to read markdown file for preview. " + message);
     }
   };
 
@@ -139,6 +167,10 @@ function Publish() {
                   Tags <span className="text-[#9dabb9] text-sm font-normal">(optional)</span>
                 </span>
                 <div className="flex flex-wrap gap-2">
+                  {loadingTags && (
+                    <span className="text-[#9dabb9] text-sm">Loading tags from server...</span>
+                  )}
+                  {tagError && <span className="text-[#f87171] text-sm">{tagError}</span>}
                   {allTags.map((tag) => {
                     const active = selectedTags.includes(tag);
                     return (
@@ -156,7 +188,7 @@ function Publish() {
                       </button>
                     );
                   })}
-                  {allTags.length === 0 && (
+                  {!loadingTags && !tagError && allTags.length === 0 && (
                     <span className="text-[#9dabb9] text-sm">No tags available.</span>
                   )}
                 </div>

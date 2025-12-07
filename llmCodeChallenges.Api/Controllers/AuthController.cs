@@ -1,6 +1,5 @@
 using llmCodeChallenges.Api.Models.Auth;
 using llmCodeChallenges.Api.Models;
-using llmCodeChallenges.Api.Models.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

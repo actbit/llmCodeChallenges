@@ -1,18 +1,34 @@
 import { useParams, Link } from "react-router-dom";
-import { mockProblems } from "../mock";
 import Header from "../components/Header";
 import MarkdownIt from "markdown-it";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useState } from "react";
+import { problemsApi, type Problem as ProblemType } from "../api/problems";
 
 const md = new MarkdownIt();
 
 function Problem() {
   const { id } = useParams<{ id: string }>();
-  const problemId = parseInt(id || "1", 10);
+  const [problem, setProblem] = useState<ProblemType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const problem = useMemo(() => {
-    return mockProblems.find((p) => p.id === problemId);
-  }, [problemId]);
+  useEffect(() => {
+    const fetchProblem = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        const data = await problemsApi.getById(id);
+        setProblem(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load problem");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProblem();
+  }, [id]);
 
   const htmlContent = useMemo(() => {
     if (!problem) return "";
@@ -20,7 +36,8 @@ function Problem() {
   }, [problem]);
 
   const copyChallengeCommand = useCallback(() => {
-    const command = `lcc fetch ${problemId}`;
+    if (!id) return;
+    const command = `lcc fetch ${id}`;
 
     if (navigator?.clipboard?.writeText) {
       navigator.clipboard.writeText(command).catch(() => {
@@ -35,9 +52,23 @@ function Problem() {
     textarea.select();
     document.execCommand("copy");
     document.body.removeChild(textarea);
-  }, [problemId]);
+  }, [id]);
 
-  if (!problem) {
+  if (loading) {
+    return (
+      <div
+        className="relative flex h-auto min-h-screen w-full flex-col bg-[#111418] dark group/design-root overflow-x-hidden"
+        style={{ fontFamily: '"Space Grotesk", "Noto Sans", sans-serif' }}
+      >
+        <Header />
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-[#9dabb9] text-lg">Loading problem...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !problem) {
     return (
       <div
         className="relative flex h-auto min-h-screen w-full flex-col bg-[#111418] dark group/design-root overflow-x-hidden"
@@ -46,7 +77,7 @@ function Problem() {
         <Header />
         <div className="flex flex-1 items-center justify-center">
           <div className="text-center">
-            <h1 className="text-white text-4xl font-bold mb-4">Problem Not Found</h1>
+            <h1 className="text-white text-4xl font-bold mb-4">{error || "Problem Not Found"}</h1>
             <Link to="/" className="text-[#1380ec] hover:underline">
               Back to Problems
             </Link>
@@ -95,8 +126,10 @@ function Problem() {
                 ))}
               </div>
 
-              <h1 className="text-white text-3xl font-bold mt-4 mb-2">{problem.title}</h1>
-              <p className="text-[#9dabb9] text-base mb-6">{problem.description}</p>
+              <h1 className="text-white text-3xl font-bold mt-4 mb-2">{problem.name}</h1>
+              <p className="text-[#9dabb9] text-base mb-6">
+                {problem.description || "No description available"}
+              </p>
             </div>
 
             <div className="p-4">
