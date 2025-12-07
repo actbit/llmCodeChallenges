@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="llmCodeChallenges.Api/llmCodeChallenges.Api.csproj" />
+  <Project Path="llmCodeChallenges.AppHost/llmCodeChallenges.AppHost.csproj" />
+  <Project Path="llmCodeChallenges.ServiceDefaults/llmCodeChallenges.ServiceDefaults.csproj" />
+  <Project Path="llmCodeChallenges.Web/llmCodeChallenges.Web.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+</Solution>

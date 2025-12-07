@@ -1,0 +1,6 @@
+@llmCodeChallenges.Api_HostAddress = http://localhost:5065
+
+GET {{llmCodeChallenges.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
