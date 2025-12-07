@@ -1,9 +1,36 @@
+using System;
+using System.Linq;
+using llmCodeChallenges.Api.Data;
+using llmCodeChallenges.Api.Models;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Forwarder;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+builder.Services.AddDataProtection();
+
+var connectionString = builder.Configuration["services:postgres:connectionString"]
+    ?? builder.Configuration.GetConnectionString("postgres")
+    ?? throw new InvalidOperationException("Missing PostgreSQL connection string 'postgres'.");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = false;
+    options.User.RequireUniqueEmail = false;
+})
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<ApplicationDbContext>("postgres");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers();
@@ -28,6 +55,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
+app.UseAuthentication();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 
@@ -93,4 +121,13 @@ app.MapFallback("{*path}", async (HttpContext context, IHttpForwarder forwarder,
     }
 });
 
-app.Run();
+await ApplyMigrationsAsync(app.Services);
+
+await app.RunAsync();
+
+static async Task ApplyMigrationsAsync(IServiceProvider services)
+{
+    using var scope = services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await context.Database.MigrateAsync();
+}
